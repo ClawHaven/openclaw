@@ -72,7 +72,7 @@ export const AgentsListResultSchema = Type.Object(
 
 export const AgentsCreateParamsSchema = Type.Object(
   {
-    id: NonEmptyString,
+    agentId: NonEmptyString,
     displayName: NonEmptyString,
     workspace: NonEmptyString,
     model: Type.Optional(NonEmptyString),
