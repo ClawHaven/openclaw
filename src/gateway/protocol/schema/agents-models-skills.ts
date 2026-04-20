@@ -72,11 +72,13 @@ export const AgentsListResultSchema = Type.Object(
 
 export const AgentsCreateParamsSchema = Type.Object(
   {
-    name: NonEmptyString,
+    id: NonEmptyString,
+    displayName: NonEmptyString,
     workspace: NonEmptyString,
     model: Type.Optional(NonEmptyString),
     emoji: Type.Optional(Type.String()),
     avatar: Type.Optional(Type.String()),
+    config: Type.Optional(Type.Object({}, { additionalProperties: true })),
   },
   { additionalProperties: false },
 );
@@ -85,7 +87,7 @@ export const AgentsCreateResultSchema = Type.Object(
   {
     ok: Type.Literal(true),
     agentId: NonEmptyString,
-    name: NonEmptyString,
+    displayName: NonEmptyString,
     workspace: NonEmptyString,
     model: Type.Optional(NonEmptyString),
   },
