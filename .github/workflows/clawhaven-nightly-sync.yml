@@ -216,6 +216,7 @@ jobs:
           fork_owned_paths=(
             "${WORKFLOW_FILE}"
             "${CI_WORKFLOW_FILE}"
+            "${UPSTREAM_CI_WORKFLOW_FILE}"
             "${STATE_FILE}"
           )
 

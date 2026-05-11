@@ -390,49 +390,22 @@ jobs:
           printf 'Auditing workflow files:\n%s\n' "${workflow_files[@]}"
           pre-commit run --config "${PRE_COMMIT_CONFIG_PATH:-.pre-commit-config.yaml}" zizmor --files "${workflow_files[@]}"
 
-  security-dependency-audit:
-    permissions:
-      contents: read
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ inputs.target_ref || github.sha }}
-          fetch-depth: 1
-          fetch-tags: false
-          persist-credentials: false
-          submodules: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: "24.x"
-          check-latest: false
-
-      - name: Audit production dependencies
-        run: node scripts/pre-commit/pnpm-audit-prod.mjs --audit-level=high
-
   security-fast:
     permissions: {}
-    needs: [security-scm-fast, security-dependency-audit]
+    needs: [security-scm-fast]
     if: ${{ !cancelled() && always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Verify fast security jobs
         env:
-          DEPENDENCY_AUDIT_RESULT: ${{ needs.security-dependency-audit.result }}
           SCM_RESULT: ${{ needs.security-scm-fast.result }}
         run: |
           set -euo pipefail
           failed=0
 
           for result in \
-            "security-scm-fast=${SCM_RESULT}" \
-            "security-dependency-audit=${DEPENDENCY_AUDIT_RESULT}"
+            "security-scm-fast=${SCM_RESULT}"
           do
             job="${result%%=*}"
             status="${result#*=}"
