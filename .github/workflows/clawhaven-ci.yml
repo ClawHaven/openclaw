@@ -7,8 +7,6 @@ on:
         description: Run full upstream pnpm test suite
         required: false
         default: "false"
-  pull_request:
-    branches: [main]
 
 permissions:
   contents: read
