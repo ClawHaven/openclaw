@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   listAgentEntries: vi.fn((_cfg?: unknown) => [] as Array<Record<string, unknown>>),
   findAgentEntryIndex: vi.fn((_list?: unknown, _agentId?: string) => -1),
   applyAgentConfig: vi.fn((_cfg: unknown, _opts: unknown) => ({})),
+  mergeAgentConfigOverrides: vi.fn((cfg: unknown, _agentId: unknown, _overrides: unknown) => cfg),
   pruneAgentConfig: vi.fn(() => ({ config: {}, removedBindings: 0 })),
   writeConfigFile: vi.fn(async (_nextConfig?: unknown) => {}),
   ensureAgentWorkspace: vi.fn(
@@ -56,6 +57,7 @@ vi.mock("../../config/config.js", async () => {
 
 vi.mock("../../commands/agents.config.js", () => ({
   applyAgentConfig: mocks.applyAgentConfig,
+  mergeAgentConfigOverrides: mocks.mergeAgentConfigOverrides,
   findAgentEntryIndex: mocks.findAgentEntryIndex,
   listAgentEntries: mocks.listAgentEntries,
   pruneAgentConfig: mocks.pruneAgentConfig,
@@ -370,7 +372,8 @@ describe("agents.create", () => {
 
   it("creates a new agent successfully", async () => {
     const { respond, promise } = makeCall("agents.create", {
-      name: "Test Agent",
+      agentId: "test-agent",
+      displayName: "Test Agent",
       workspace: "/home/user/agents/test",
     });
     await promise;
@@ -380,7 +383,7 @@ describe("agents.create", () => {
       expect.objectContaining({
         ok: true,
         agentId: "test-agent",
-        name: "Test Agent",
+        displayName: "Test Agent",
       }),
       undefined,
     );
@@ -399,7 +402,8 @@ describe("agents.create", () => {
     });
 
     const { promise } = makeCall("agents.create", {
-      name: "Order Test",
+      agentId: "order-test",
+      displayName: "Order Test",
       workspace: "/tmp/ws",
     });
     await promise;
@@ -411,7 +415,8 @@ describe("agents.create", () => {
 
   it("rejects creating an agent with reserved 'main' id", async () => {
     const { respond, promise } = makeCall("agents.create", {
-      name: "main",
+      agentId: "main",
+      displayName: "Main Agent",
       workspace: "/tmp/ws",
     });
     await promise;
@@ -427,7 +432,8 @@ describe("agents.create", () => {
     mocks.findAgentEntryIndex.mockReturnValue(0);
 
     const { respond, promise } = makeCall("agents.create", {
-      name: "Existing",
+      agentId: "existing",
+      displayName: "Existing",
       workspace: "/tmp/ws",
     });
     await promise;
@@ -440,7 +446,7 @@ describe("agents.create", () => {
     expect(mocks.writeConfigFile).not.toHaveBeenCalled();
   });
 
-  it("rejects invalid params (missing name)", async () => {
+  it("rejects invalid params (missing id)", async () => {
     const { respond, promise } = makeCall("agents.create", {
       workspace: "/tmp/ws",
     });
@@ -455,7 +461,8 @@ describe("agents.create", () => {
 
   it("writes identity to both config and IDENTITY.md", async () => {
     const { promise } = makeCall("agents.create", {
-      name: "Plain Agent",
+      agentId: "plain-agent",
+      displayName: "Plain Agent",
       workspace: "/tmp/ws",
     });
     await promise;
@@ -477,7 +484,8 @@ describe("agents.create", () => {
 
   it("writes emoji and avatar to both config and IDENTITY.md", async () => {
     const { promise } = makeCall("agents.create", {
-      name: "Fancy Agent",
+      agentId: "fancy-agent",
+      displayName: "Fancy Agent",
       workspace: "/tmp/ws",
       emoji: "🤖",
       avatar: "https://example.com/avatar.png",
@@ -509,7 +517,8 @@ describe("agents.create", () => {
     );
 
     const { respond, promise } = makeCall("agents.create", {
-      name: "Unsafe Agent",
+      agentId: "unsafe-agent",
+      displayName: "Unsafe Agent",
       workspace: "/tmp/ws",
     });
     await promise;
@@ -534,7 +543,8 @@ describe("agents.create", () => {
     });
 
     const { promise } = makeCall("agents.create", {
-      name: "Unreadable Identity",
+      agentId: "unreadable-identity",
+      displayName: "Unreadable Identity",
       workspace: "/tmp/ws",
     });
 
@@ -551,7 +561,8 @@ describe("agents.create", () => {
     });
 
     const { respond, promise } = makeCall("agents.create", {
-      name: "Unsafe Identity Read",
+      agentId: "unsafe-identity-read",
+      displayName: "Unsafe Identity Read",
       workspace: "/tmp/ws",
     });
     await promise;
@@ -574,7 +585,8 @@ describe("agents.create", () => {
     agentsTesting.setDepsForTests({ readFileWithinRoot });
 
     const { promise } = makeCall("agents.create", {
-      name: "NB Agent",
+      agentId: "nb-agent",
+      displayName: "NB Agent",
       workspace: "/tmp/ws",
     });
     await promise;
@@ -589,7 +601,8 @@ describe("agents.create", () => {
 
   it("passes model to applyAgentConfig when provided", async () => {
     const { respond, promise } = makeCall("agents.create", {
-      name: "Model Agent",
+      agentId: "model-agent",
+      displayName: "Model Agent",
       workspace: "/tmp/ws",
       model: "sonnet-4.6",
     });
@@ -604,6 +617,62 @@ describe("agents.create", () => {
       expect.anything(),
       expect.objectContaining({ model: "sonnet-4.6" }),
     );
+  });
+
+  it("merges config overrides into agent entry when config is provided", async () => {
+    const sandboxConfig = {
+      browser: { enabled: false, allowHostControl: true },
+      mode: "non-main",
+      backend: "ssh",
+      scope: "agent",
+      workspaceAccess: "rw",
+      workspaceRoot: "/tmp/openclaw-sandboxes",
+      ssh: {
+        target: "user@sandbox-host.example.com:22",
+        strictHostKeyChecking: true,
+        updateHostKeys: true,
+        identityData: { source: "env", provider: "default", id: "SSH_IDENTITY" },
+        knownHostsData: { source: "env", provider: "default", id: "SSH_KNOWN_HOSTS" },
+      },
+      sessionToolsVisibility: "all",
+      prune: { idleHours: 4, maxAgeDays: 3 },
+    };
+
+    const { promise } = makeCall("agents.create", {
+      agentId: "ssh-agent",
+      displayName: "SSH Agent",
+      workspace: "/tmp/ws",
+      config: { sandbox: sandboxConfig },
+    });
+    await promise;
+
+    expect(mocks.mergeAgentConfigOverrides).toHaveBeenCalledWith(
+      expect.anything(),
+      "ssh-agent",
+      expect.objectContaining({ sandbox: sandboxConfig }),
+    );
+    // Protected fields must not be forwarded to the merge helper
+    expect(mocks.mergeAgentConfigOverrides).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.not.objectContaining({ id: expect.anything() }),
+    );
+    expect(mocks.mergeAgentConfigOverrides).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.not.objectContaining({ workspace: expect.anything() }),
+    );
+  });
+
+  it("skips mergeAgentConfigOverrides when no config is provided", async () => {
+    const { promise } = makeCall("agents.create", {
+      agentId: "plain-no-config",
+      displayName: "Plain",
+      workspace: "/tmp/ws",
+    });
+    await promise;
+
+    expect(mocks.mergeAgentConfigOverrides).not.toHaveBeenCalled();
   });
 });
 
