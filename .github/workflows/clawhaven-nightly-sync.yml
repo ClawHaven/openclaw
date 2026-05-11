@@ -37,6 +37,7 @@ env:
   STATE_FILE: .github/clawhaven-release-sync.json
   WORKFLOW_FILE: .github/workflows/clawhaven-nightly-sync.yml
   CI_WORKFLOW_FILE: .github/workflows/clawhaven-ci.yml
+  UPSTREAM_CI_WORKFLOW_FILE: .github/workflows/ci.yml
   DEFAULT_HEAD_BRANCH: clawhaven/agents-create-improvements
   HEAD_BRANCH_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.head_branch || '' }}
   RELEASE_TAG_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || '' }}
@@ -268,7 +269,7 @@ jobs:
           dispatch_checks() {
             local attempt
             for attempt in 1 2 3 4 5; do
-              if gh workflow run "${CI_WORKFLOW_FILE}" \
+              if gh workflow run "${UPSTREAM_CI_WORKFLOW_FILE}" \
                 --repo "${GITHUB_REPOSITORY}" \
                 --ref "${head_branch}"; then
                 return 0
@@ -356,7 +357,7 @@ jobs:
               "${head_branch}" \
               "${head_branch}" \
               "${head_branch}" \
-              "${CI_WORKFLOW_FILE}" \
+              "${UPSTREAM_CI_WORKFLOW_FILE}" \
               "${GITHUB_REPOSITORY}" \
               "${head_branch}")"
             post_pr_comment "ClawHaven nightly sync rebase conflict" "${body}"
@@ -367,14 +368,14 @@ jobs:
 
           if [ "${DRY_RUN}" = "true" ]; then
             echo "Dry run: would force-with-lease ${head_branch} from ${old_head_sha} to ${new_head_sha}."
-            echo "Dry run: would dispatch ${CI_WORKFLOW_FILE} on ${head_branch}."
+            echo "Dry run: would dispatch ${UPSTREAM_CI_WORKFLOW_FILE} on ${head_branch}."
           else
             git push origin "HEAD:refs/heads/${head_branch}" \
               --force-with-lease="refs/heads/${head_branch}:${old_head_sha}"
 
             if ! dispatch_checks; then
               body="$(printf 'The release sync pushed the rebased PR branch, but explicit check dispatch failed.\n\nManual recovery:\n\n```bash\ngh workflow run %s --repo %s --ref %s\n```\n' \
-                "${CI_WORKFLOW_FILE}" \
+                "${UPSTREAM_CI_WORKFLOW_FILE}" \
                 "${GITHUB_REPOSITORY}" \
                 "${head_branch}")"
               post_pr_comment "ClawHaven nightly sync check dispatch failed" "${body}"
@@ -395,6 +396,6 @@ jobs:
             if [ "${DRY_RUN}" = "true" ]; then
               echo "- Result: dry run only; no branches were pushed and checks were not dispatched."
             else
-              echo "- Result: pushed main, pushed rebased PR branch, and dispatched Clawhaven CI."
+              echo "- Result: pushed main, pushed rebased PR branch, and dispatched upstream CI."
             fi
           } >> "${GITHUB_STEP_SUMMARY}"
