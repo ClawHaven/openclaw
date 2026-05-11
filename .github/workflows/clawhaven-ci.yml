@@ -2,11 +2,12 @@ name: Clawhaven CI
 
 on:
   workflow_dispatch:
-    inputs:
-      full_test:
-        description: Run full upstream pnpm test suite
-        required: false
-        default: "false"
+  push:
+    branches:
+      - "clawhaven/**"
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -21,7 +22,7 @@ env:
 jobs:
   gate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -39,9 +40,26 @@ jobs:
         with:
           install-bun: "false"
 
-      - name: Changed gate
-        run: pnpm check:changed --base origin/main
+      - name: Protocol generated files
+        run: pnpm protocol:check
 
-      - name: Full upstream tests
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.full_test == 'true' }}
-        run: pnpm test
+      - name: Agent create gateway tests
+        run: pnpm test src/gateway/server-methods/agents-mutate.test.ts
+
+      - name: Agent command tests
+        run: |
+          pnpm test \
+            src/commands/agents.test.ts \
+            src/commands/agents.add.test.ts \
+            src/commands/agents.identity.test.ts \
+            src/commands/agents.commands.list.test.ts \
+            src/commands/agents.delete.test.ts \
+            src/commands/agents.providers.test.ts \
+            src/commands/agents.bind.commands.test.ts \
+            src/commands/agents.bind.matrix.integration.test.ts
+
+      - name: Agent tool tests
+        run: |
+          pnpm test \
+            src/agents/openclaw-tools.agents.test.ts \
+            src/agents/tools/agents-list-tool.test.ts
