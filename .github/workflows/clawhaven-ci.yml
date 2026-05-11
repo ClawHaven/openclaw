@@ -2,9 +2,6 @@ name: Clawhaven CI
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - "clawhaven/**"
   pull_request:
     branches:
       - main
