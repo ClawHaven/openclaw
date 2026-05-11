@@ -7,9 +7,6 @@ on:
         description: Run full upstream pnpm test suite
         required: false
         default: "false"
-  push:
-    branches:
-      - "clawhaven/**"
   pull_request:
     branches: [main]
 
@@ -46,6 +43,9 @@ jobs:
 
       - name: Changed gate
         run: pnpm check:changed --base origin/main
+
+      - name: Changed tests
+        run: pnpm test:changed
 
       - name: Full upstream tests
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.full_test == 'true' }}
